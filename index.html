@@ -155,6 +155,7 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
     <p class="hint" id="docHint"></p>
     <input type="file" id="file" accept="image/*" class="hide">
     <button class="btn ghost" id="pick" style="margin-top:16px">写真を選ぶ / 撮影する</button>
+    <p class="hint" style="margin-top:10px">端末や通信環境によっては、写真がうまく読み込めないことがあります。その場合は、そのまま続けて2〜3回お試しください。</p>
     <div class="shot" id="shot"><img id="preview" alt=""><div class="scan" id="scan"></div></div>
     <button class="btn hide" id="ocr">この写真を読み取る</button>
     <p class="err" id="err2"></p>
@@ -200,7 +201,7 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
     {id:'id', label:'学生証', hint:'書類をまっすぐ・平らにして、明るい場所で光の反射が入らないように撮影してください。有効期限の欄が写るとより正確に判定できます。'},
     {id:'mypage', label:'大学マイページ', hint:'氏名・学籍番号・卒業予定年度が読み取れる画面を撮影またはスクリーンショットしてください。'}
   ];
-  var state = { status: [], docType: 'id', hi: '', lo: '', ocr: '', years: [], best: '' };
+  var state = { status: [], docType: 'id', hi: '', lo: '', ocr: '', years: [], best: '', detectedDob: '' };
 
   function $(id){ return document.getElementById(id); }
   function show(id){ var e=$(id); e.classList.remove('hide'); e.classList.remove('pane'); void e.offsetWidth; e.classList.add('pane'); }
@@ -323,9 +324,12 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
     else gj=['ng','不一致'];
     $('jGrad').className='tag pop '+gj[0]; $('jGrad').textContent=gj[1]; state.gradJudge=gj[1];
     var dob=$('dob').value, dj=['warn','要確認'];
+    state.detectedDob='';
+    var dm=text.match(/(19|20)\d{2}\D{0,3}\d{1,2}\D{0,3}\d{1,2}/);
+    if(dm) state.detectedDob=dm[0];
     if(dob){
       var p=dob.split('-'), y=p[0], m2=String(parseInt(p[1],10)), d2=String(parseInt(p[2],10));
-      if(new RegExp(y+'\\D{0,3}0?'+m2+'\\D{0,3}0?'+d2).test(text)) dj=['ok','一致'];
+      if(new RegExp(y+'\\D{0,3}0?'+m2+'\\D{0,3}0?'+d2).test(text)){ dj=['ok','一致']; state.detectedDob=dob; }
     }
     $('jDob').className='tag pop '+dj[0]; $('jDob').textContent=dj[1]; state.dobJudge=dj[1];
   }
@@ -342,7 +346,7 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
       phone:$('phone').value.trim(), email:$('email').value.trim(),
       docType:state.docType, imgDataUrlHi:state.hi, imgDataUrlLo:state.lo,
       ocrText:state.ocr, bestGuess:state.best, allYears:state.years,
-      gradJudge:state.gradJudge, dobJudge:state.dobJudge
+      gradJudge:state.gradJudge, dobJudge:state.dobJudge, detectedDob:state.detectedDob||''
     };
     fetch(API, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) })
       .then(function(res){ return res.json().catch(function(){ return {ok:true}; }); })
@@ -351,7 +355,7 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
         else { throw new Error('ng'); }
       })
       .catch(function(){
-        fail('err3','送信に失敗しました。通信環境をご確認のうえ、もう一度お試しください。');
+        fail('err3','送信に失敗しました。通信環境をご確認のうえ、そのまま続けて2〜3回お試しください。それでも進まない場合はご連絡ください。');
         btn.disabled=false; btn.textContent='この内容で登録を送信する';
       });
   };
