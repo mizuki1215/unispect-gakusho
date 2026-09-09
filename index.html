@@ -67,8 +67,10 @@ header.top{position:sticky;top:10px;z-index:5;display:flex;align-items:center;ga
 .hide{display:none}
 label.f{display:block;font:var(--t-cap);color:var(--label-secondary);margin:var(--s4) 0 6px;letter-spacing:.04em}
 label.f b{color:var(--ng);font-weight:600;margin-left:5px}
-input[type=text],input[type=date],input[type=tel],input[type=email]{width:100%;min-height:46px;padding:12px 14px;border:.5px solid var(--hairline);border-radius:15px;background:var(--glass-strong);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--label);font:400 1rem/1.4 var(--font);transition:border-color .28s var(--ease),box-shadow .28s var(--ease)}
-input::placeholder{color:var(--label-tertiary)}
+input[type=text],input[type=date],input[type=tel],input[type=email],textarea.f{width:100%;min-height:46px;padding:12px 14px;border:.5px solid var(--hairline);border-radius:15px;background:var(--glass-strong);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:var(--label);font:400 1rem/1.4 var(--font);transition:border-color .28s var(--ease),box-shadow .28s var(--ease)}
+input::placeholder,textarea.f::placeholder{color:var(--label-tertiary)}
+textarea.f{min-height:76px;resize:vertical;font-family:var(--font)}
+textarea.f:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--accent-soft),0 0 0 1.5px var(--accent)}
 input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--accent-soft),0 0 0 1.5px var(--accent)}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
 .chip{min-height:40px;display:inline-flex;align-items:center;padding:9px 16px;border-radius:999px;cursor:pointer;user-select:none;background:var(--glass-strong);backdrop-filter:blur(14px) saturate(180%);-webkit-backdrop-filter:blur(14px) saturate(180%);border:.5px solid var(--hairline);box-shadow:inset 0 1px 0 rgba(255,255,255,.5);font:500 .875rem/1 var(--font);color:var(--label);transition:transform .22s var(--ease),background .28s var(--ease),color .2s var(--ease),box-shadow .28s var(--ease)}
@@ -136,6 +138,8 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
     <input type="text" id="name" placeholder="山田 太郎" autocomplete="name">
     <label class="f">生年月日<b>必須</b></label>
     <input type="date" id="dob" autocomplete="bday">
+    <label class="f">性別<b>必須</b></label>
+    <div class="chips" id="genderChips"></div>
     <label class="f">卒業予定年度（西暦）<b>必須</b></label>
     <input type="text" id="gradYear" inputmode="numeric" placeholder="2028">
     <label class="f">該当するものをすべて選択<b>必須</b></label>
@@ -168,6 +172,12 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
     <div class="row"><span>生年月日</span><span class="tag idle" id="jDob">未判定</span></div>
     <p class="hint" style="margin-top:14px">読み取った文字（確認用）</p>
     <div class="ocr" id="ocrText">-</div>
+    <label class="f">見ている業界<b>必須</b></label>
+    <textarea class="f" id="industry" rows="2" placeholder="例：IT、金融、商社など"></textarea>
+    <label class="f">希望勤務地<b>必須</b></label>
+    <textarea class="f" id="location" rows="2" placeholder="例：東京、関東圏、地元（大阪）など"></textarea>
+    <label class="f">就活で困っていることはありますか？<b>必須</b></label>
+    <textarea class="f" id="concerns" rows="3" placeholder="例：自己PRが書けない、どの業界を見ればいいか分からない など"></textarea>
     <label class="agree"><input type="checkbox" id="ag1"><span><a id="termsLink" href="#" target="_blank" rel="noopener">利用規約</a>に同意します</span></label>
     <label class="agree"><input type="checkbox" id="ag2"><span><a id="privacyLink" href="#" target="_blank" rel="noopener">個人情報の取り扱い</a>に同意し、入力情報および提出書類の確認結果を、Unispectおよび協力企業・送客先企業に提供することに同意します。</span></label>
     <p class="err" id="err3"></p>
@@ -197,11 +207,12 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
   var REF = (new URLSearchParams(location.search).get('ref') || '20');
 
   var STATUSES = ['ストレート学生','浪人','留年','留学','休学','院生','既卒','社会人'];
+  var GENDERS = ['男性','女性'];
   var DOCS = [
     {id:'id', label:'学生証', hint:'書類をまっすぐ・平らにして、明るい場所で光の反射が入らないように撮影してください。有効期限の欄が写るとより正確に判定できます。'},
     {id:'mypage', label:'大学マイページ', hint:'氏名・学籍番号・卒業予定年度が読み取れる画面を撮影またはスクリーンショットしてください。'}
   ];
-  var state = { status: [], docType: 'id', hi: '', lo: '', ocr: '', years: [], best: '', detectedDob: '' };
+  var state = { status: [], docType: 'id', gender: '', hi: '', lo: '', ocr: '', years: [], best: '', detectedDob: '' };
 
   function $(id){ return document.getElementById(id); }
   function show(id){ var e=$(id); e.classList.remove('hide'); e.classList.remove('pane'); void e.offsetWidth; e.classList.add('pane'); }
@@ -223,6 +234,18 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
     };
     b.onkeydown=function(e){ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); b.click(); } };
     $('statusChips').appendChild(b);
+  });
+
+  GENDERS.forEach(function(g){
+    var b=document.createElement('div');
+    b.className='chip'; b.textContent=g; b.setAttribute('role','button'); b.tabIndex=0;
+    b.onclick=function(){
+      state.gender=g;
+      [].forEach.call($('genderChips').children,function(c){ c.classList.remove('on'); });
+      b.classList.add('on');
+    };
+    b.onkeydown=function(e){ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); b.click(); } };
+    $('genderChips').appendChild(b);
   });
 
   DOCS.forEach(function(d){
@@ -256,6 +279,7 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
     var phone=$('phone').value.trim(), email=$('email').value.trim();
     if(!name||!dob||!gy||!phone||!email){ fail('err1','未入力の項目があります。'); return; }
     if(!/^20\d\d$/.test(gy)){ fail('err1','卒業予定年度は西暦4桁で入力してください。'); return; }
+    if(!state.gender){ fail('err1','性別を選択してください。'); return; }
     if(!state.status.length){ fail('err1','該当するものを1つ以上選択してください。'); return; }
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ fail('err1','メールアドレスの形式が正しくありません。'); return; }
     fail('err1',''); go('step1','step2',2);
@@ -325,8 +349,11 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
     $('jGrad').className='tag pop '+gj[0]; $('jGrad').textContent=gj[1]; state.gradJudge=gj[1];
     var dob=$('dob').value, dj=['warn','要確認'];
     state.detectedDob='';
-    var dm=text.match(/(19|20)\d{2}\D{0,3}\d{1,2}\D{0,3}\d{1,2}/);
-    if(dm) state.detectedDob=dm[0];
+    var dm=text.match(/((?:19|20)\d{2})\D{0,3}(\d{1,2})\D{0,3}(\d{1,2})/);
+    if(dm){
+      var mm=('0'+dm[2]).slice(-2), dd=('0'+dm[3]).slice(-2);
+      if(+dm[2]>=1 && +dm[2]<=12 && +dm[3]>=1 && +dm[3]<=31) state.detectedDob=dm[1]+'-'+mm+'-'+dd;
+    }
     if(dob){
       var p=dob.split('-'), y=p[0], m2=String(parseInt(p[1],10)), d2=String(parseInt(p[2],10));
       if(new RegExp(y+'\\D{0,3}0?'+m2+'\\D{0,3}0?'+d2).test(text)){ dj=['ok','一致']; state.detectedDob=dob; }
@@ -335,6 +362,8 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
   }
 
   $('submit').onclick=function(){
+    var vIndustry=$('industry').value.trim(), vLocation=$('location').value.trim(), vConcerns=$('concerns').value.trim();
+    if(!vIndustry||!vLocation||!vConcerns){ fail('err3','見ている業界・希望勤務地・就活で困っていることは必須です。'); return; }
     if(!$('ag1').checked||!$('ag2').checked){ fail('err3','2つの同意にチェックしてください。'); return; }
     fail('err3','');
     var btn=$('submit');
@@ -342,6 +371,8 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
     btn.innerHTML='<span class="spin"></span>送信中…';
     var payload={
       ref:REF, name:$('name').value.trim(), dob:$('dob').value,
+      gender:state.gender,
+      industry:vIndustry, location:vLocation, concerns:vConcerns,
       gradYear:$('gradYear').value.trim(), status:state.status,
       phone:$('phone').value.trim(), email:$('email').value.trim(),
       docType:state.docType, imgDataUrlHi:state.hi, imgDataUrlLo:state.lo,
