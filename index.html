@@ -468,17 +468,25 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
     var tries=0;
     (function confirm(){
       tries++;
+      // 8秒あたりで一度、時間がかかる旨を伝える（不安で再送されるのを防ぐ）
+      if(tries === 4){
+        fail('err3','送信中です。画像の確認に時間がかかることがあります。この画面を閉じずにお待ちください。');
+        $('err3').style.color='var(--label-secondary)';
+      }
       fetch(API + '?check=' + encodeURIComponent(payload.sid), { cache:'no-store' })
         .then(function(res){ return res.json(); })
         .then(function(r){
-          if(r && r.done){ go('step3','done',3); return; }
+          if(r && r.done){ $('err3').style.color=''; fail('err3',''); go('step3','done',3); return; }
           next();
         })
         .catch(function(){ next(); });
 
       function next(){
-        if(tries < 20){ setTimeout(confirm, 2000); return; }
-        fail('err3','送信の確認が取れませんでした。二重登録を避けるため、もう一度送る前に本アカウントまでご連絡ください。');
+        if(tries < 30){ setTimeout(confirm, 2000); return; }
+        // ここに来た時点でも送信は届いている可能性が高い。
+        // 「失敗」と言い切ると再送され、二重登録になるため書き方を分けている。
+        $('err3').style.color='';
+        fail('err3','送信に時間がかかっています。すでに登録できている場合がありますので、続けて何度も送らず、しばらく待ってから本アカウントまでご連絡ください。');
         btn.disabled=false; btn.textContent='この内容で登録を送信する';
       }
     })();
