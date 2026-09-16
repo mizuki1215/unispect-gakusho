@@ -441,8 +441,9 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
     fail('err3','');
     var btn=$('submit');
     btn.disabled=true;
-    btn.innerHTML='<span class="spin"></span>送信中…';
+    btn.innerHTML='<span class="spin"></span>送信中… そのままお待ちください';
     var payload={
+      sid: 'S' + Date.now() + Math.random().toString(36).slice(2,8),
       ref:REF, name:$('name').value.trim(), dob:$('dob').value,
       gender:state.gender,
       industry:vIndustry, location:vLocation, concerns:vConcerns,
@@ -453,16 +454,34 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
       ocrText:state.ocr, bestGuess:state.best, allYears:state.years,
       gradJudge:state.gradJudge, dobJudge:state.dobJudge, detectedDob:state.detectedDob||''
     };
-    fetch(API, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify(payload) })
-      .then(function(res){ return res.json().catch(function(){ return {ok:true}; }); })
-      .then(function(r){
-        if(r && r.ok !== false){ go('step3','done',3); }
-        else { throw new Error('ng'); }
-      })
-      .catch(function(){
-        fail('err3','送信に失敗しました。通信環境をご確認のうえ、そのまま続けて2〜3回お試しください。それでも進まない場合はご連絡ください。');
+    // 送信は応答を待たずに投げ、そのあと軽い問い合わせで「届いたか」を確かめます。
+    // 画像の保存と先方への中継で10〜20秒かかることがあり、
+    // モバイル回線だと応答を受け取る前に切れてしまうためです。
+    // 実際には届いているのに失敗と表示され、学生が二重送信する事故が起きていました。
+    fetch(API, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(payload),
+      keepalive:true
+    }).catch(function(){});
+
+    var tries=0;
+    (function confirm(){
+      tries++;
+      fetch(API + '?check=' + encodeURIComponent(payload.sid), { cache:'no-store' })
+        .then(function(res){ return res.json(); })
+        .then(function(r){
+          if(r && r.done){ go('step3','done',3); return; }
+          next();
+        })
+        .catch(function(){ next(); });
+
+      function next(){
+        if(tries < 20){ setTimeout(confirm, 2000); return; }
+        fail('err3','送信の確認が取れませんでした。二重登録を避けるため、もう一度送る前に本アカウントまでご連絡ください。');
         btn.disabled=false; btn.textContent='この内容で登録を送信する';
-      });
+      }
+    })();
   };
 </script>
 </body>
