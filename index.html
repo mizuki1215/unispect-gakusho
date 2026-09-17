@@ -220,7 +220,7 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
         <path d="M21 34 L29.5 42 L45 25" stroke="var(--accent)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
       <h2>登録を送信しました</h2>
-      <p>続いて、事前アンケートのご提出をお願いします。<br>担当者からご案内したURLからお進みください。</p>
+      <p>内容を確認のうえ、担当者からご連絡します。<br>イベント当日はメモ帳とペンをお忘れなく。</p>
     </div>
   </section>
 
@@ -454,19 +454,34 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
       ocrText:state.ocr, bestGuess:state.best, allYears:state.years,
       gradJudge:state.gradJudge, dobJudge:state.dobJudge, detectedDob:state.detectedDob||''
     };
-    // 送信は応答を待たずに投げ、そのあと軽い問い合わせで「届いたか」を確かめます。
-    // 画像の保存と先方への中継で10〜20秒かかることがあり、
-    // モバイル回線だと応答を受け取る前に切れてしまうためです。
-    // 実際には届いているのに失敗と表示され、学生が二重送信する事故が起きていました。
+    var finished=false;
+    function finish(){
+      if(finished) return; finished=true;
+      $('err3').style.color=''; fail('err3',''); go('step3','done',3);
+    }
+    function giveUp(msg){
+      if(finished) return; finished=true;
+      $('err3').style.color=''; fail('err3',msg);
+      btn.disabled=false; btn.textContent='この内容で登録を送信する';
+    }
+
+    // 送信本体。応答が返ればその場で完了にし、返らなくても下の問い合わせで「届いたか」を確かめます。
+    // ※ keepalive は付けないこと。ブラウザは keepalive 付きの送信本文を 64KB までしか受け付けず、
+    //   画像つきの本文はその場で捨てられます（2026/09/17 に全員の送信が止まった原因）。
     fetch(API, {
       method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify(payload),
-      keepalive:true
-    }).catch(function(){});
+      body: JSON.stringify(payload)
+    }).then(function(res){ return res.json(); })
+      .then(function(r){
+        if(r && r.ok){ finish(); }
+        else if(r && r.error){ giveUp('送信できませんでした（' + r.error + '）。もう一度お試しください。'); }
+      })
+      .catch(function(){ /* 回線が切れても届いている可能性があるので、下の問い合わせに任せる */ });
 
     var tries=0;
     (function confirm(){
+      if(finished) return;
       tries++;
       // 8秒あたりで一度、時間がかかる旨を伝える（不安で再送されるのを防ぐ）
       if(tries === 4){
@@ -476,18 +491,18 @@ input:focus{outline:none;border-color:transparent;box-shadow:0 0 0 3px var(--acc
       fetch(API + '?check=' + encodeURIComponent(payload.sid), { cache:'no-store' })
         .then(function(res){ return res.json(); })
         .then(function(r){
-          if(r && r.done){ $('err3').style.color=''; fail('err3',''); go('step3','done',3); return; }
+          if(finished) return;
+          if(r && r.done){ finish(); return; }
           next();
         })
         .catch(function(){ next(); });
 
       function next(){
+        if(finished) return;
         if(tries < 30){ setTimeout(confirm, 2000); return; }
-        // ここに来た時点でも送信は届いている可能性が高い。
+        // ここに来た時点でも送信は届いている可能性がある。
         // 「失敗」と言い切ると再送され、二重登録になるため書き方を分けている。
-        $('err3').style.color='';
-        fail('err3','送信に時間がかかっています。すでに登録できている場合がありますので、続けて何度も送らず、しばらく待ってから本アカウントまでご連絡ください。');
-        btn.disabled=false; btn.textContent='この内容で登録を送信する';
+        giveUp('送信に時間がかかっています。すでに登録できている場合がありますので、続けて何度も送らず、しばらく待ってから本アカウントまでご連絡ください。');
       }
     })();
   };
